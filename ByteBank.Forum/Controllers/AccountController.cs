@@ -2,6 +2,8 @@
 using ByteBank.Forum.ViewModels;
 using Microsoft.AspNet.Identity;
 using Microsoft.AspNet.Identity.Owin;
+using System;
+using System.Configuration;
 using System.Threading.Tasks;
 using System.Web;
 using System.Web.Mvc;
@@ -45,28 +47,68 @@ namespace ByteBank.Forum.Controllers
                     FullName = model.FullName
                 };
 
-                var user = UserManager.FindByEmail(model.Email);
+                var user = await UserManager.FindByEmailAsync(model.Email);
 
                 if (user != null)
                 {
-                    return RedirectToAction("Index", "Home");
+                    if (user.EmailConfirmed)
+                    {
+                        return RedirectToAction("Index", "Home");
+                    }
+                    else
+                    {
+                        return RedirectToAction("WaitingConfirm");
+                    }
                 }
 
                 var result = await UserManager.CreateAsync(newUser, model.Password);
 
                 if (result.Succeeded)
                 {
-                    return RedirectToAction("Index", "Home");
+                    await SendConfirmEmail(newUser, ConfigurationManager.AppSettings["emailService:email_subject_confirm"], ConfigurationManager.AppSettings["emailService:email_body_confirm"]);
+                    
+                    return RedirectToAction("WaitingConfirm");
                 }
                 else
                 {
                     AddErrors(result);
                 }
-
-                
             }
 
             return View(model);
+        }
+
+        public ActionResult WaitingConfirm()
+        {
+            return View();
+        }
+
+        public async Task<ActionResult> ConfirmEmail(string userId, string token)
+        {
+            if (userId == null || token == null)
+            {
+                return View("Error");
+            }
+
+            var result = await UserManager.ConfirmEmailAsync(userId, token);
+
+            if (result.Succeeded)
+            {
+                return RedirectToAction("Index", "Home");
+            }
+            else
+            {
+                return View("Error");
+            }
+        }
+
+        private async Task SendConfirmEmail(ApplicationUser user, string sbject, string body)
+        {
+            var token = await UserManager.GenerateEmailConfirmationTokenAsync(user.Id);
+
+            var callbackLink = Url.Action("ConfirmEmail", "Account", new { userId = user.Id, token }, Request.Url.Scheme);
+
+            await UserManager.SendEmailAsync(user.Id, sbject, body.Replace("{callbackLink}", callbackLink));
         }
 
         private void AddErrors(IdentityResult result)

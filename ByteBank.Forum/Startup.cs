@@ -1,4 +1,5 @@
-﻿using ByteBank.Forum.Models;
+﻿using ByteBank.Forum.App_Start.Identity;
+using ByteBank.Forum.Models;
 using Microsoft.AspNet.Identity;
 using Microsoft.AspNet.Identity.EntityFramework;
 using Microsoft.AspNet.Identity.Owin;
@@ -43,6 +44,10 @@ namespace ByteBank.Forum
                     RequireNonLetterOrDigit = true,
                     RequireUppercase = true
                 };
+
+                userManager.EmailService = new EmailService();
+
+                userManager.UserTokenProvider = new DataProtectorTokenProvider<ApplicationUser>(options.DataProtectionProvider.Create("ByteBank.Forum"));
 
                 return userManager;
             });
